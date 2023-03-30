@@ -1,12 +1,12 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.18;
 
-import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
+import "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
 
-contract Lottery {
-    bytes32 internal keyHash;
-    uint256 internal fee;
+contract Lottery is VRFConsumerBase {
+    address private vrfCoordinator;
+    bytes32 private keyHash;
+    uint256 private fee;
 
     uint256[] private rolls;
     bytes32[] private requestIds;
@@ -21,8 +21,12 @@ contract Lottery {
     uint256[] private guesses;
     mapping(address => uint256) private debts;
 
-    constructor(uint256 _roundInterval, uint256 _maxNumber,address _vrfCoordinator, address _link)
-        VRFConsumerBase(_vrfCoordinator, _link) public {
+    constructor(
+        uint256 _roundInterval,
+        uint256 _maxNumber,
+        address _vrfCoordinator,
+        address _link
+    ) VRFConsumerBase(_vrfCoordinator, _link) {
         require(_roundInterval > 0, "Interval should be one day at least");
         require(_maxNumber > 0, "There should be at least one possible number");
 
@@ -31,7 +35,6 @@ contract Lottery {
         maxNumber = _maxNumber;
 
         vrfCoordinator = _vrfCoordinator;
-        LINK = LinkTokenInterface(_link);
         keyHash = 0xced103054e349b8dfb51352f0f8fa9b5d20dde3d06f9f43cb2b85bc64b238205;
         fee = 10 ** 18;
     }
@@ -56,11 +59,11 @@ contract Lottery {
 
     function finish(bytes32 requestId) external nonReentrant {
         require(block.timestamp >= endTime, "Lottery has not ended");
-        require(rolls.length > 0, "Should be at least one roller")
+        require(rolls.length > 0, "Should be at least one roller");
 
-        lastRoll = rolls[rolls.length - 1]
-        lastRequestId = requestIds[requestIds.length - 1]
-        require(lastRequestId == requestId, "Idempotency key is unrecognised")
+        uint256 lastRoll = rolls[rolls.length - 1];
+        bytes32 lastRequestId = requestIds[requestIds.length - 1];
+        require(lastRequestId == requestId, "Idempotency key is unrecognised");
 
         // uint256 randomNumber = random();
         address[] memory winners = tickets[lastRoll];
@@ -102,20 +105,33 @@ contract Lottery {
         total += msg.value;
     }
 
-    function rollNumber(uint256 userProvidedSeed) public returns (bytes32 requestId) {
-        require(LINK.balanceOf(address(this)) > fee, "Not enough LINK - fill contract with faucet");
-        bytes32 _requestId = requestRandomness(keyHash, fee, userProvidedSeed);
+    function rollNumber() public returns (bytes32 requestId) {
+        require(
+            LINK.balanceOf(address(this)) > fee,
+            "Not enough LINK - fill contract with faucet"
+        );
+        bytes32 _requestId = requestRandomness(keyHash, fee);
         return _requestId;
     }
-    
-    modifier onlyVRFCoordinator {
-        require(msg.sender == vrfCoordinator, 'Fulfillment only allowed by VRFCoordinator');
+
+    modifier onlyVRFCoordinator() {
+        require(
+            msg.sender == vrfCoordinator,
+            "Fulfillment only allowed by VRFCoordinator"
+        );
         _;
     }
 
-    function fulfillRandomness(bytes32 requestId, uint256 randomness) external override onlyVRFCoordinator {
-        uint256 roll = randomness.mod(maxNumber);
+    event RequestFulfilled(bytes32 requestId, uint256 randomness);
+
+    function fulfillRandomness(
+        bytes32 requestId,
+        uint256 randomness
+    ) internal override onlyVRFCoordinator {
+        uint256 roll = randomness % maxNumber;
         rolls.push(roll);
         requestIds.push(requestId);
+
+        emit RequestFulfilled(requestId, randomness);
     }
 }
