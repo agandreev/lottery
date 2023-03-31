@@ -112,6 +112,10 @@ contract Lottery is VRFConsumerBase {
             LINK.balanceOf(address(this)) > fee,
             "Not enough LINK - fill contract with faucet"
         );
+        require(
+            rollers[msg.sender] + 60 < block.timestamp,
+            "Should wait sometime"
+        );
         bytes32 _requestId = requestRandomness(keyHash, fee);
         return _requestId;
     }
