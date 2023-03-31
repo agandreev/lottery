@@ -20,6 +20,7 @@ contract Lottery is VRFConsumerBase {
     mapping(uint256 => address[]) private tickets;
     uint256[] private guesses;
     mapping(address => uint256) private debts;
+    mapping(address => uint256) private rollers;
 
     constructor(
         uint256 _roundInterval,
@@ -46,6 +47,7 @@ contract Lottery is VRFConsumerBase {
 
         tickets[_guess].push(msg.sender);
         guesses.push(_guess);
+        rollers[msg.sender] = block.timestamp;
         total += ticketPrice;
     }
 
