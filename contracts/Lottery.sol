@@ -117,6 +117,7 @@ contract Lottery is VRFConsumerBase {
             "Should wait sometime"
         );
         bytes32 _requestId = requestRandomness(keyHash, fee);
+        rollers[msg.sender] = block.timestamp;
         return _requestId;
     }
 
